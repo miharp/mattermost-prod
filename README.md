@@ -1,64 +1,83 @@
 # mattermost-prod
 
-A masterless control repo that runs a production Mattermost server on one
-Hetzner VM using [puppet-mattermost](https://github.com/miharp/puppet-mattermost):
-nginx TLS termination with Let's Encrypt, Mattermost + local PostgreSQL via
-the module, nightly database dumps, and a systemd timer that re-applies the
-committed repo every 30 minutes.
+The masterless control repo behind **https://chat.mikeharp.com** — a
+production Mattermost server on one Hetzner VM, deployed and converged by
+[puppet-mattermost](https://github.com/miharp/puppet-mattermost).
 
-The stack this deploys is the one validated end to end in
-[mattermost-lab](https://github.com/miharp/mattermost-lab) — EL9 (arm64 or
-amd64), SELinux enforcing, archive install — plus the TLS/backup layer a
-real deployment needs.
+**Status: live.** nginx TLS termination with Let's Encrypt (auto-renewing),
+Mattermost with a local PGDG PostgreSQL 16 via the module, outbound email
+through SMTP submission, nightly database dumps, and a systemd timer that
+re-applies this repo every 30 minutes. The stack was validated end to end in
+[mattermost-lab](https://github.com/miharp/mattermost-lab) before it ever
+touched a paid VM.
 
-## Server
+## The server
 
-- Hetzner CAX21 (4 vCPU arm64, 8 GB) or CPX21 — either is ample headroom
-  for a ~250-member community (Mattermost sizes 1,000 users at 2 vCPU/4 GB)
-- Image: **Rocky Linux 9**
-- DNS: an A/AAAA record for the chat domain pointing at the server,
-  **before** bootstrap (Let's Encrypt validates over HTTP)
+- `chat01` — Hetzner cx33 (4 vCPU x86, 8 GB, 80 GB), Rocky Linux 9, `nbg1`
+- DNS: `chat.mikeharp.com` (A record at the registrar)
+- Exposed ports: 22, 80, 443 only (firewalld); Mattermost listens on
+  loopback behind nginx; PostgreSQL is local-only
 
-## Prerequisites
-
-- The module repo must be clonable by r10k on the server: either make
-  `miharp/puppet-mattermost` public, or configure a read-only deploy key
-  and switch the Puppetfile URL to SSH. Same applies to this repo itself.
-
-## Bootstrap
+## How changes happen
 
 ```console
-ssh root@<server>
-dnf install -y git
-git clone https://github.com/miharp/mattermost-prod /opt/mattermost-prod
-cd /opt/mattermost-prod
-
-# Set the real domain and contact address:
-vi data/common.yaml            # mattermost::site_url, letsencrypt_email
-cp data/secrets.yaml.example data/secrets.yaml
-vi data/secrets.yaml           # real database password
-
-./scripts/bootstrap
+# edit, then:
+git commit && git push        # ...and within 30 minutes chat01 has converged
+# impatient? on the server:
+systemctl start puppet-apply
 ```
 
-Bootstrap applies twice on purpose: the first pass brings up HTTP-only
-nginx and obtains the certificate, the second upgrades the vhost to TLS.
-After that, `puppet-apply.timer` keeps the server converged with whatever
-is committed — the operational loop is *commit, push, wait* (or
-`systemctl start puppet-apply` to not wait).
+`puppet-apply.timer` runs [scripts/run-puppet](scripts/run-puppet): pull the
+committed repo, `r10k puppetfile install`, `puppet apply`. Edits made directly
+on the server are overwritten on the next run — except
+`data/secrets.yaml`, which is gitignored and lives **only** on the server
+(database password, SMTP mailbox password; see
+[data/secrets.yaml.example](data/secrets.yaml.example)).
 
-Edits made on the server directly (including `data/common.yaml`) are
-overwritten by the next timer run's `git pull`; `data/secrets.yaml` is the
-one file that lives only on the server.
+Mattermost settings are hiera data ([data/common.yaml](data/common.yaml)),
+rendered by the module into `MM_*` environment variables. Settings managed
+here show as environment-locked in the System Console; everything else stays
+console-editable and persists.
 
-## What's deliberately not here yet
+## Email
 
-- **Off-site backups** — dumps rotate locally in `/var/backups/mattermost`;
-  ship them (and `/opt/mattermost/data`, until uploads move to object
-  storage) to a Hetzner Storage Box or S3 bucket
-- **Object storage for uploads** — `FileSettings` example is stubbed in
-  `data/common.yaml`; enabling it makes the VM disposable
-- **SMTP** — invites and email notifications need it; example stubbed in
-  `data/common.yaml`
+Outbound mail goes through the `chat@mikeharp.com` mailbox (Bluehost) on
+**port 587 with STARTTLS** — Hetzner blocks outbound 25/465 on newer cloud
+accounts. Replies to notification emails land in that mailbox.
+
+## Rebuilding from scratch
+
+The VM is disposable by design; a rebuild is ~30 minutes:
+
+1. Create an EL9 VM, point the DNS A record at it
+2. `dnf install -y git && git clone https://github.com/miharp/mattermost-prod /opt/mattermost-prod`
+3. Recreate `data/secrets.yaml` from the example (and your password manager)
+4. `./scripts/bootstrap` — installs the OpenVox agent and r10k, then applies
+   twice (the first pass serves HTTP and obtains the certificate — skipped
+   cleanly if DNS hasn't propagated yet; the second upgrades nginx to TLS;
+   the timer self-heals either way)
+5. Restore the latest dump from `/var/backups/mattermost` (or off-site copy)
+
+## Shakedown notes (learned the hard way, now encoded here)
+
+- Hetzner's Rocky image ships **without firewalld** — `profile::base`
+  installs and manages it
+- `mattermost::manage_database` uses distro defaults, and EL9's default
+  stream is PostgreSQL **13** (below Mattermost's required 14) —
+  `profile::mattermost` declares `postgresql::globals` for PGDG 16. Beware
+  on a host that already has PostgreSQL installed: dnf module streams share
+  the `postgresql-server` package name, so an existing wrong-version install
+  is left in place
+- EL9's nginx is 1.20: use `listen 443 ssl http2;`, not the newer
+  `http2 on;` directive
+- The certbot exec is gated on `getent hosts <domain>` so pre-DNS applies
+  skip it instead of failing
+
+## Still deliberately missing
+
+- **Off-site backups** — dumps rotate locally (14 days) in
+  `/var/backups/mattermost`; ship them (and `/opt/mattermost/data`, until
+  uploads move to object storage) to a Storage Box or S3 bucket
+- **Object storage for uploads** — `FileSettings` stub in `data/common.yaml`
 - **Monitoring** — at minimum an external uptime check against
-  `https://<domain>/api/v4/system/ping`
+  `https://chat.mikeharp.com/api/v4/system/ping`
