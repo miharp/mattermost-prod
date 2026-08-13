@@ -4,12 +4,17 @@ The masterless control repo behind **https://chat.mikeharp.com** — a
 production Mattermost server on one Hetzner VM, deployed and converged by
 [puppet-mattermost](https://github.com/miharp/puppet-mattermost).
 
-**Status: live.** nginx TLS termination with Let's Encrypt (auto-renewing),
-Mattermost with a local PGDG PostgreSQL 16 via the module, outbound email
-through SMTP submission, nightly database dumps, and a systemd timer that
-re-applies this repo every 30 minutes. The stack was validated end to end in
-[mattermost-lab](https://github.com/miharp/mattermost-lab) before it ever
-touched a paid VM.
+**Status: decommissioned (2026-08-13)** — the server was deliberately
+deleted after proving the stack end to end (Vox Pupuli chose a Matrix
+migration instead; this repo remains the rebuild recipe and plan B). A
+final database dump and the secrets file were preserved off-box. The
+deployment it ran: nginx TLS termination with Let's Encrypt, Mattermost
+with a local PGDG PostgreSQL 16 via the module, outbound email through
+SMTP submission, nightly database dumps, and a systemd timer re-applying
+this repo every 30 minutes — validated end to end in
+[mattermost-lab](https://github.com/miharp/mattermost-lab) first, then
+live at chat.mikeharp.com for its shakedown day. See
+[Rebuilding from scratch](#rebuilding-from-scratch) to resurrect it.
 
 ## The server
 
