@@ -1,0 +1,29 @@
+---
+# ------------------------------------------------------------------ change me
+# The public URL. profile::nginx derives the certificate domain from it.
+mattermost::site_url: 'https://chat.example.com'
+profile::nginx::letsencrypt_email: 'mike@mikeharp.com'
+# -----------------------------------------------------------------------------
+
+mattermost::version: '11.9.1'
+mattermost::manage_database: true
+
+lookup_options:
+  mattermost::db_password:
+    convert_to: 'Sensitive'
+
+mattermost::override_options:
+  ServiceSettings:
+    # nginx terminates TLS and proxies; Mattermost itself only listens on
+    # loopback (defense in depth on top of firewalld).
+    ListenAddress: '127.0.0.1:8065'
+  # Recommended once object storage exists (keeps the VM disposable):
+  # FileSettings:
+  #   DriverName: 'amazons3'
+  #   AmazonS3Bucket: '...'
+  #   AmazonS3Endpoint: '...'
+  # Notifications need outbound mail (SES/Mailgun/Postmark free tiers):
+  # EmailSettings:
+  #   SMTPServer: '...'
+  #   SMTPPort: '587'
+  #   EnableSMTPAuth: true

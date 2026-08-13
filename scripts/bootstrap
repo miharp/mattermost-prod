@@ -1,0 +1,27 @@
+#!/bin/bash
+# One-time bootstrap on a fresh Rocky Linux 9 host. Assumes this repo is
+# already cloned to /opt/mattermost-prod (see README) and DNS for the
+# site_url domain points at this host.
+set -euo pipefail
+repo=/opt/mattermost-prod
+
+[ -f "$repo/data/secrets.yaml" ] || {
+  echo "ERROR: create $repo/data/secrets.yaml first (copy data/secrets.yaml.example)" >&2
+  exit 1
+}
+
+rpm -q openvox8-release >/dev/null 2>&1 || \
+  rpm -Uvh https://yum.voxpupuli.org/openvox8-release-el-9.noarch.rpm
+dnf install -y -q openvox-agent git
+
+/opt/puppetlabs/puppet/bin/gem list -i r10k >/dev/null 2>&1 || \
+  /opt/puppetlabs/puppet/bin/gem install r10k --no-document
+
+# Two applies, by design: the first configures HTTP-only nginx and obtains
+# the Let's Encrypt certificate, the second upgrades the vhost to TLS.
+"$repo/scripts/run-puppet"
+"$repo/scripts/run-puppet"
+
+echo ""
+echo "Done. Mattermost should be reachable at the configured site_url;"
+echo "the first account created in the browser becomes the System Admin."

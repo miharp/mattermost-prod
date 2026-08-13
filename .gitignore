@@ -1,0 +1,5 @@
+# Real secrets live only on the server.
+data/secrets.yaml
+
+# r10k installs Puppetfile modules here.
+modules/

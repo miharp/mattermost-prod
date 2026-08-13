@@ -1,0 +1,17 @@
+#!/bin/bash
+# Pull the committed repo, resolve Puppetfile modules, apply. Run by hand
+# during bootstrap and by puppet-apply.timer every 30 minutes after that.
+set -euo pipefail
+repo=/opt/mattermost-prod
+cd "$repo"
+
+git pull --ff-only --quiet || echo "warning: git pull failed; applying the checked-out revision" >&2
+
+/opt/puppetlabs/puppet/bin/r10k puppetfile install --moduledir "$repo/modules"
+
+# Exit 2 means "changes applied" — success for a timer unit.
+/opt/puppetlabs/bin/puppet apply \
+  --hiera_config "$repo/hiera.yaml" \
+  --modulepath "$repo/site-modules:$repo/modules" \
+  --detailed-exitcodes \
+  "$repo/manifests/site.pp" || { rc=$?; [ "$rc" -eq 2 ] || exit "$rc"; }
