@@ -27,8 +27,9 @@ mattermost::override_options:
     FeedbackEmail: 'chat@mikeharp.com'
     ReplyToAddress: 'chat@mikeharp.com'
     SMTPServer: 'mail.mikeharp.com'
-    SMTPPort: '465'
-    ConnectionSecurity: 'TLS'
+    # Hetzner blocks outbound 25/465 on newer accounts; 587+STARTTLS works.
+    SMTPPort: '587'
+    ConnectionSecurity: 'STARTTLS'
     EnableSMTPAuth: true
     SMTPUsername: 'chat@mikeharp.com'
   # Recommended once object storage exists (keeps the VM disposable):
