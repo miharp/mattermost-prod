@@ -5,6 +5,18 @@ class profile::base {
     ensure => installed,
   }
 
+  # Hetzner's Rocky cloud image ships without firewalld; unmanaged, every
+  # listening port would be world-reachable.
+  package { 'firewalld':
+    ensure => installed,
+  }
+
+  service { 'firewalld':
+    ensure  => running,
+    enable  => true,
+    require => Package['firewalld'],
+  }
+
   # Only 80/443 are exposed; Mattermost listens on loopback and PostgreSQL
   # is local-only. Two idempotent execs beat a firewall module dependency
   # for a single host.
@@ -13,6 +25,7 @@ class profile::base {
       command => "firewall-cmd --add-port=${port}/tcp --permanent && firewall-cmd --reload",
       unless  => "firewall-cmd --query-port=${port}/tcp",
       path    => ['/usr/bin', '/usr/sbin'],
+      require => Service['firewalld'],
     }
   }
 

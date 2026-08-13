@@ -63,6 +63,9 @@ class profile::nginx (
       "-d ${server_name} -m ${letsencrypt_email} --agree-tos -n",
     ], ' '),
     creates => "/etc/letsencrypt/live/${server_name}/fullchain.pem",
+    # Skip (not fail) until DNS for the domain exists; the puppet-apply
+    # timer picks the certificate up on a later run.
+    onlyif  => "/usr/bin/getent hosts ${server_name}",
     require => [Service['nginx'], File['/var/www/letsencrypt']],
   }
 
