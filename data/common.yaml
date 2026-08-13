@@ -9,19 +9,30 @@ mattermost::manage_database: true
 lookup_options:
   mattermost::db_password:
     convert_to: 'Sensitive'
+  # Deep-merged so secrets.yaml can contribute just the SMTP password.
+  mattermost::override_options:
+    merge: deep
 
 mattermost::override_options:
   ServiceSettings:
     # nginx terminates TLS and proxies; Mattermost itself only listens on
     # loopback (defense in depth on top of firewalld).
     ListenAddress: '127.0.0.1:8065'
+  # Outbound mail via the existing Bluehost-hosted mailbox; the password
+  # comes from the server-side secrets.yaml (deep-merged, see
+  # lookup_options above).
+  EmailSettings:
+    SendEmailNotifications: true
+    FeedbackName: 'Mattermost'
+    FeedbackEmail: 'chat@mikeharp.com'
+    ReplyToAddress: 'chat@mikeharp.com'
+    SMTPServer: 'mail.mikeharp.com'
+    SMTPPort: '465'
+    ConnectionSecurity: 'TLS'
+    EnableSMTPAuth: true
+    SMTPUsername: 'chat@mikeharp.com'
   # Recommended once object storage exists (keeps the VM disposable):
   # FileSettings:
   #   DriverName: 'amazons3'
   #   AmazonS3Bucket: '...'
   #   AmazonS3Endpoint: '...'
-  # Notifications need outbound mail (SES/Mailgun/Postmark free tiers):
-  # EmailSettings:
-  #   SMTPServer: '...'
-  #   SMTPPort: '587'
-  #   EnableSMTPAuth: true
