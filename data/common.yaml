@@ -1,9 +1,7 @@
 ---
-# ------------------------------------------------------------------ change me
 # The public URL. profile::nginx derives the certificate domain from it.
-mattermost::site_url: 'https://chat.example.com'
+mattermost::site_url: 'https://chat.mikeharp.com'
 profile::nginx::letsencrypt_email: 'mike@mikeharp.com'
-# -----------------------------------------------------------------------------
 
 mattermost::version: '11.9.1'
 mattermost::manage_database: true
